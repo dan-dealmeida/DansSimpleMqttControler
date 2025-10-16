@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conexão MQTT - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define a fonte Inter para o corpo */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Fundo escuro global (Dark Mode) */
+            background-color: #0f172a; /* slate-900 */
+        }
+        /* Estilo para o cartão no modo escuro */
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4); /* Sombra mais intensa para destacar no escuro */
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Habilita o dark mode baseado na classe 'dark' no <html>
+            theme: {
+                extend: {
+                    colors: {
+                        // Cor primária estilo Gemini (verde/ciano vibrante)
+                        'primary-teal': '#2dd4bf', /* teal-400 */
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-lg">
+
+        <div id="login-view" class="card bg-slate-800 p-6 sm:p-8 rounded-2xl fade-in border border-slate-700">
+            <h1 class="text-3xl font-extrabold text-indigo-300 mb-4 text-center">
+                <span class="text-4xl">🤖</span> Configuração MQTT
+            </h1>
+            <p class="text-sm text-slate-400 mb-6 text-center">
+                Insira as configurações do Broker para iniciar a conexão.
+            </p>
+
+            <form id="mqtt-form" class="space-y-6">
+                
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="col-span-3">
+                        <label for="broker-address" class="block text-sm font-medium text-slate-300">Endereço do Broker (URL/IP)</label>
+                        <input type="text" id="broker-address" value="test.mosquitto.org" required
+                               class="mt-1 block w-full px-4 py-2 border border-slate-600 rounded-xl bg-slate-700 text-white focus:ring-indigo-400 focus:border-indigo-400 transition duration-150 shadow-inner placeholder-slate-500">
+                    </div>
+                    <div class="col-span-1">
+                        <label for="broker-port" class="block text-sm font-medium text-slate-300">Porta</label>
+                        <input type="number" id="broker-port" value="9001" required
+                               class="mt-1 block w-full px-4 py-2 border border-slate-600 rounded-xl bg-slate-700 text-white focus:ring-indigo-400 focus:border-indigo-400 transition duration-150 shadow-inner placeholder-slate-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                    <div class="md:col-span-3">
+                        <label for="client-id" class="block text-sm font-medium text-slate-300">Client ID</label>
+                        <div class="mt-1 flex rounded-xl shadow-sm">
+                            <input type="text" id="client-id" required readonly
+                                   class="block w-full px-4 py-2 border border-slate-600 rounded-l-xl bg-slate-700 text-slate-400 focus:ring-indigo-400 focus:border-indigo-400 transition duration-150 cursor-default">
+                            <button type="button" id="refresh-client-id" title="Gerar novo Client ID"
+                                    class="inline-flex items-center px-4 border border-l-0 border-slate-600 bg-slate-600 text-indigo-400 rounded-r-xl hover:bg-slate-700 transition duration-150">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.18-7.7A2.5 2.5 0 0 1 22 7.5"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-slate-300">Username (Opcional)</label>
+                        <input type="text" id="username" placeholder="Usuário"
+                               class="mt-1 block w-full px-4 py-2 border border-slate-600 rounded-xl bg-slate-700 text-white focus:ring-indigo-400 focus:border-indigo-400 transition duration-150 shadow-inner placeholder-slate-500">
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-slate-300">Password (Opcional)</label>
+                        <input type="password" id="password" placeholder="Senha"
+                               class="mt-1 block w-full px-4 py-2 border border-slate-600 rounded-xl bg-slate-700 text-white focus:ring-indigo-400 focus:border-indigo-400 transition duration-150 shadow-inner placeholder-slate-500">
+                    </div>
+
+                    <div>
+                        <label for="keep-alive" class="block text-sm font-medium text-slate-300">Keep Alive (seg)</label>
+                        <input type="number" id="keep-alive" value="60" min="1" max="120"
+                               class="mt-1 block w-full px-4 py-2 border border-slate-600 rounded-xl bg-slate-700 text-white focus:ring-indigo-400 focus:border-indigo-400 transition duration-150 shadow-inner placeholder-slate-500">
+                    </div>
+
+                    <div class="md:col-span-3 flex items-center pt-2">
+                        <input id="clean-start" name="clean-start" type="checkbox" checked
+                               class="h-5 w-5 text-primary-teal border-slate-600 rounded focus:ring-primary-teal bg-slate-700">
+                        <label for="clean-start" class="ml-3 block text-base font-medium text-slate-300 select-none">
+                            <span class="text-sm">Clean Start / Session</span> 
+                            <span class="block text-xs text-slate-500">Inicia uma nova sessão de conexão.</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" id="connect-button"
+                        class="w-full mt-6 flex justify-center items-center py-3 px-4 rounded-xl shadow-lg 
+                               text-lg font-bold text-slate-900 bg-primary-teal 
+                               hover:bg-teal-300 focus:outline-none focus:ring-4 focus:ring-primary-teal focus:ring-opacity-50 
+                               transition duration-200 disabled:opacity-60 disabled:shadow-none">
+                    <span id="button-text">Conectar</span>
+                </button>
+            </form>
+
+            <div id="message-box" class="mt-6 p-4 rounded-xl hidden border">
+                <p id="message-text" class="text-sm font-medium"></p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Importa módulos Firebase (MANUTENÇÃO OBRIGATÓRIA PELO AMBIENTE)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis globais do ambiente (Uso obrigatório)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, app;
+
+        // Inicializa o Firebase (apenas para conformidade com o ambiente)
+        async function initializeFirebase() {
+            if (!firebaseConfig) return;
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+            }
+        }
+
+        // --- Variáveis de UI e MQTT ---
+        const mqttForm = document.getElementById('mqtt-form');
+        const connectButton = document.getElementById('connect-button');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const refreshClientIdButton = document.getElementById('refresh-client-id');
+        const clientIdInput = document.getElementById('client-id');
+
+        let mqttClient = null; // Instância do cliente Paho
+
+        /**
+         * Gera um Client ID aleatório.
+         */
+        function generateClientId() {
+            const randomId = crypto.randomUUID().substring(0, 8);
+            const newClientId = `web_mqtt_${randomId}`;
+            clientIdInput.value = newClientId;
+            return newClientId;
+        }
+
+        /**
+         * Exibe uma mensagem de status/erro na caixa de mensagens.
+         * Cores ajustadas para Dark Mode: Erro (vermelho) / Status (azul-ciano).
+         */
+        function showMessage(message, isError) {
+            messageText.textContent = message;
+            // Remove todas as classes de cor e a classe 'hidden'
+            messageBox.className = 'mt-6 p-4 rounded-xl border'; 
+            
+            if (isError) {
+                // Erro: Fundo Vermelho-escuro, Texto Vermelho claro, Borda Vermelha
+                messageBox.classList.add('bg-red-900', 'text-red-300', 'border-red-700');
+            } else {
+                // Status: Fundo Azul-escuro/Ciano, Texto Ciano claro, Borda Ciano
+                messageBox.classList.add('bg-blue-900', 'text-blue-300', 'border-blue-700');
+            }
+        }
+
+        /**
+         * Define o estado de carregamento do botão.
+         */
+        function setLoading(isLoading) {
+            connectButton.disabled = isLoading;
+            document.getElementById('button-text').textContent = isLoading ? 'Conectando...' : 'Conectar';
+            if (isLoading) {
+                connectButton.classList.add('opacity-60', 'cursor-not-allowed', 'shadow-none');
+            } else {
+                connectButton.classList.remove('opacity-60', 'cursor-not-allowed', 'shadow-none');
+            }
+        }
+
+        // --- Lógica de Conexão MQTT ---
+
+        function onConnect(responseObject) {
+            console.log("MQTT Conectado:", responseObject);
+            
+            // 1. Salva os detalhes da conexão no localStorage
+            const connectionData = {
+                broker: document.getElementById('broker-address').value.trim(),
+                port: document.getElementById('broker-port').value.trim(),
+                clientId: mqttClient.clientId,
+                username: document.getElementById('username').value.trim(),
+                password: document.getElementById('password').value.trim(),
+                keepAlive: document.getElementById('keep-alive').value,
+                cleanStart: document.getElementById('clean-start').checked,
+            };
+            localStorage.setItem('mqtt_connection_data', JSON.stringify(connectionData));
+
+            // 2. Desconecta o cliente (para evitar manter o cliente ativo nesta página)
+            mqttClient.disconnect();
+            
+            // 3. Redireciona para o dashboard
+            console.log("Conexão bem-sucedida! Redirecionando para dashboard.html");
+            window.location.href = 'dashboard.html';
+        }
+
+        function onConnectionLost(responseObject) {
+            setLoading(false);
+            if (responseObject.errorCode !== 0) {
+                showMessage(`Conexão Perdida (Código ${responseObject.errorCode}): ${responseObject.errorMessage}. Tente novamente.`, true);
+                console.error("Conexão Perdida:", responseObject);
+            }
+        }
+
+        function connectToBroker(broker, port, clientId, username, password, keepAlive, cleanStart) {
+            
+            mqttClient = new Paho.MQTT.Client(broker, Number(port), "/ws", clientId);
+            mqttClient.onConnectionLost = onConnectionLost;
+
+            const connectOptions = {
+                onSuccess: onConnect,
+                onFailure: (responseObject) => {
+                    setLoading(false);
+                    let errorMessage = `Falha na Conexão (Código ${responseObject.errorCode}): ${responseObject.errorMessage}`;
+                    if (responseObject.errorCode === 8) errorMessage += ". Verifique as credenciais de Username/Password.";
+                    if (responseObject.errorCode === 11) errorMessage += ". A URL ou a Porta do Broker pode estar incorreta.";
+
+                    showMessage(`Erro na Conexão: ${errorMessage}`, true);
+                    console.error("Falha na Conexão:", responseObject);
+                },
+                userName: username || undefined,
+                password: password || undefined,
+                keepAliveInterval: Number(keepAlive), 
+                cleanSession: cleanStart, 
+                timeout: 30, 
+                // Lógica simples para useSSL: se a porta for 443, 8083 ou 8883, usa SSL (mais comum para websockets seguro)
+                useSSL: [443, 8083, 8883].includes(Number(port)), 
+            };
+
+            setLoading(true);
+            messageBox.classList.add('hidden'); // Oculta a caixa de mensagem anterior
+            mqttClient.connect(connectOptions);
+        }
+
+        // --- Event Listeners ---
+
+        mqttForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const broker = document.getElementById('broker-address').value.trim();
+            const port = document.getElementById('broker-port').value.trim();
+            const clientId = clientIdInput.value.trim();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const keepAlive = document.getElementById('keep-alive').value;
+            const cleanStart = document.getElementById('clean-start').checked;
+
+            if (!broker || !port || !clientId) {
+                showMessage("Endereço do Broker, Porta e Client ID são campos obrigatórios.", true);
+                return;
+            }
+
+            connectToBroker(broker, port, clientId, username, password, keepAlive, cleanStart);
+        });
+
+        refreshClientIdButton.addEventListener('click', generateClientId);
+
+        window.onload = () => {
+            initializeFirebase();
+            generateClientId(); 
+            // Exibe mensagem de erro se a URL tiver 'status=disconnected' (vindo do dashboard)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('status') === 'disconnected') {
+                showMessage("Sessão expirada ou desconectada. Por favor, reconecte-se.", true);
+                // Limpa o status para não exibir a mensagem novamente
+                history.pushState(null, '', window.location.pathname);
+            }
+        };
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard MQTT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos customizados para a fonte Inter e cores */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Fundo: slate-900 */
+        }
+        .card {
+            /* Sombra no dark mode para dar profundidade */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Layout principal (Otimizado) */
+        #dashboard-container {
+            min-height: 95vh;
+            max-width: 1200px; /* Largura máxima para desktops */
+            width: 100%;
+        }
+        #message-feed {
+            height: 250px; /* Mais espaço para o feed no mobile */
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse; /* Mensagens mais recentes na parte inferior */
+        }
+        /* Barra de rolagem customizada para o feed (Estilo minimalista/dark) */
+        #message-feed::-webkit-scrollbar {
+            width: 8px;
+        }
+        #message-feed::-webkit-scrollbar-thumb {
+            background-color: #334155; /* slate-700 */
+            border-radius: 4px;
+        }
+        #message-feed::-webkit-scrollbar-track {
+            background-color: #1e293b; /* slate-800 */
+        }
+        /* Estilo para o popup de ajuda */
+        .group:hover .group-hover\:opacity-100 {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-teal': '#2dd4bf', /* teal-400 (Vibrante) */
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="dashboard-container" class="card bg-slate-800 p-4 md:p-8 rounded-2xl flex flex-col fade-in border border-slate-700">
+        
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-700">
+            <div class="flex flex-col">
+                <h2 class="text-2xl font-extrabold text-indigo-400">🌐 Cliente MQTT Ativo</h2>
+                <p id="connected-broker" class="text-sm text-slate-400 break-all mt-1"></p>
+            </div>
+            <button id="disconnect-button"
+                    class="mt-3 sm:mt-0 py-2 px-4 border border-transparent rounded-xl shadow-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition duration-150 flex-shrink-0">
+                🔴 Desconectar
+            </button>
+        </div>
+
+        <div class="flex flex-col-reverse md:flex-row flex-grow mt-4 gap-4">
+            
+            <div class="md:w-2/3 w-full flex flex-col space-y-4">
+                
+                <div class="bg-slate-700 p-4 rounded-xl shadow-lg border border-slate-600">
+                    <h3 class="text-lg font-semibold text-slate-200 mb-3">🛠️ Criar Nova Automação</h3>
+                    <form id="create-automation-form" class="space-y-3">
+                        <div>
+                            <label for="automation-name" class="block text-xs font-medium text-slate-400">Nome da Automação *</label>
+                            <input type="text" id="automation-name" required placeholder="Ex: Ligar LED"
+                                class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white placeholder-slate-500 focus:ring-primary-teal focus:border-primary-teal">
+                        </div>
+                        
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <label for="automation-logic" class="block text-xs font-medium text-slate-400">Lógica de Disparo (Trigger) *</label>
+                                <div class="relative group">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-help-circle text-indigo-400 cursor-pointer">
+                                        <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>
+                                    </svg>
+                                    <div class="absolute right-0 top-1/2 -translate-y-1/2 mt-2 w-72 p-3 bg-slate-900 border border-slate-700 rounded-lg shadow-xl text-xs text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
+                                        <h4 class="font-bold mb-1 text-indigo-400">Como Programar a Automação:</h4>
+                                        <p class="mb-2">Use expressões JavaScript que retornam <code>true</code> ou <code>false</code>. O sistema substitui <code>T:/seu/topico</code> pelo último payload.</p>
+                                        <p class="font-semibold mt-2">Exemplos:</p>
+                                        <ul class="list-disc list-inside space-y-1 pl-2">
+                                            <li>Se payload é um número: <code>T:/sensor/temp &gt; 25.5</code></li>
+                                            <li>Se payload é texto: <code>T:/status/porta == "ABERTA"</code></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <textarea id="automation-logic" rows="2" required placeholder='Ex: T:/sensor/temperatura > 30'
+                                class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white resize-none placeholder-slate-500"></textarea>
+                        </div>
+                        
+                        <div class="space-y-3 pt-3 border-t border-slate-600">
+                            <h4 class="text-sm font-medium text-slate-300">Ação de Publicação (Publicar se TRUE)</h4>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="automation-action-topic" class="block text-xs font-medium text-slate-400">Tópico de Ação *</label>
+                                    <input type="text" id="automation-action-topic" required placeholder="/atuador/led"
+                                        class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white placeholder-slate-500">
+                                </div>
+                                <div>
+                                    <label for="automation-action-payload" class="block text-xs font-medium text-slate-400">Payload de Ação *</label>
+                                    <input type="text" id="automation-action-payload" required placeholder="LIGAR ou 0"
+                                        class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white placeholder-slate-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-3">
+                            <div class="flex items-center space-x-4 mb-3 sm:mb-0">
+                                <div class="flex items-center space-x-2">
+                                    <label for="automation-qos" class="text-xs font-medium text-slate-400">QoS:</label>
+                                    <select id="automation-qos" class="px-2 py-1 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white">
+                                        <option value="0">0</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <input type="checkbox" id="automation-retain" class="h-4 w-4 text-primary-teal rounded border-slate-600 bg-slate-800 focus:ring-primary-teal">
+                                    <label for="automation-retain" class="text-xs font-medium text-slate-400">Retain</label>
+                                </div>
+                            </div>
+
+                            <button type="submit"
+                                    class="w-full sm:w-auto py-2 px-4 rounded-xl text-sm font-bold text-slate-900 bg-indigo-400 hover:bg-indigo-300 transition duration-150 shadow-md">
+                                Salvar Automação
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-slate-700 p-4 rounded-xl shadow-lg border border-slate-600">
+                    <h3 class="text-lg font-semibold text-slate-200 mb-3">🚀 Publicação Rápida</h3>
+                    <form id="publish-form" class="space-y-3">
+                        <div>
+                            <label for="publish-topic" class="block text-xs font-medium text-slate-400">Tópico</label>
+                            <input type="text" id="publish-topic" value="/teste/led" required
+                                    class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white placeholder-slate-500 focus:ring-primary-teal focus:border-primary-teal">
+                        </div>
+                        <div>
+                            <label for="publish-payload" class="block text-xs font-medium text-slate-400">Payload (Mensagem)</label>
+                            <textarea id="publish-payload" rows="1" required
+                                            class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white resize-none placeholder-slate-500">1</textarea>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-4">
+                                <div class="flex items-center space-x-2">
+                                    <label for="publish-qos" class="text-xs font-medium text-slate-400">QoS:</label>
+                                    <select id="publish-qos" class="px-2 py-1 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white">
+                                        <option value="0">0</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <input type="checkbox" id="publish-retain" class="h-4 w-4 text-primary-teal rounded border-slate-600 bg-slate-800 focus:ring-primary-teal">
+                                    <label for="publish-retain" class="text-xs font-medium text-slate-400">Retain</label>
+                                </div>
+                            </div>
+
+                            <button type="submit"
+                                    class="py-2 px-4 rounded-xl text-sm font-bold text-slate-900 bg-primary-teal hover:bg-teal-300 transition duration-150 shadow-md">
+                                Publicar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-slate-700 p-4 rounded-xl flex-grow border border-slate-600">
+                    <h3 class="text-lg font-semibold text-slate-200 mb-3">📥 Feed de Mensagens</h3>
+                    <div id="message-feed" class="bg-slate-900 p-3 rounded-xl border border-slate-600">
+                        <p class="text-center text-slate-500 text-sm italic mt-12" id="feed-placeholder">Nenhuma mensagem recebida ainda.</p>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div class="md:w-1/3 w-full bg-slate-700 p-4 rounded-xl flex flex-col space-y-6 md:order-last">
+                
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-200 mb-3">➕ Subscrições</h3>
+                    <form id="subscribe-form" class="flex flex-col mb-4 space-y-2">
+                        <input type="text" id="subscribe-topic" placeholder="Novo Tópico, ex: /meu/sensor" required
+                            class="flex-grow px-3 py-2 border border-slate-600 rounded-lg focus:ring-indigo-400 focus:border-indigo-400 text-sm bg-slate-800 text-white placeholder-slate-500">
+                        <div class="flex items-center space-x-2 justify-between">
+                            <div class="flex items-center space-x-2">
+                                <label for="subscribe-qos" class="text-xs font-medium text-slate-400">QoS:</label>
+                                <select id="subscribe-qos" class="px-2 py-1 border border-slate-600 rounded-lg text-sm bg-slate-800 text-white">
+                                    <option value="0">0 - No Ack</option>
+                                    <option value="1">1 - At Least Once</option>
+                                    <option value="2">2 - Exactly Once</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="bg-primary-teal text-slate-900 px-4 py-2 rounded-lg hover:bg-teal-300 transition duration-150 text-sm font-bold flex-shrink-0">
+                                Subscrever
+                            </button>
+                        </div>
+                    </form>
+                    <div id="subscriptions-list" class="space-y-2 overflow-y-auto max-h-48">
+                        <p class="text-center text-slate-500 text-xs italic p-4">Nenhum tópico subscrito.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-200 mb-3">🧠 Automações Salvas</h3>
+                    <div id="automations-list" class="space-y-2 overflow-y-auto max-h-56">
+                        <p class="text-center text-slate-500 text-xs italic p-4" id="automations-placeholder">Nenhuma automação salva.</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script type="module">
+        // Variáveis de UI e MQTT
+        const disconnectButton = document.getElementById('disconnect-button');
+        const subscriptionsList = document.getElementById('subscriptions-list');
+        const automationsList = document.getElementById('automations-list');
+        const messageFeed = document.getElementById('message-feed');
+        const subscribeForm = document.getElementById('subscribe-form');
+        const publishForm = document.getElementById('publish-form');
+        const createAutomationForm = document.getElementById('create-automation-form');
+        const feedPlaceholder = document.getElementById('feed-placeholder');
+        const automationsPlaceholder = document.getElementById('automations-placeholder');
+
+        const subscribeQoSInput = document.getElementById('subscribe-qos'); 
+        const publishQoSInput = document.getElementById('publish-qos');   
+        const publishRetainInput = document.getElementById('publish-retain'); 
+
+        let mqttClient = null;
+        let subscribedTopics = {};
+        let connectionData = null;
+        // Variável global para armazenar o último payload conhecido de cada tópico
+        let lastKnownPayloads = {}; 
+        // Variável global para armazenar o último estado (TRUE/FALSE) de cada automação
+        let lastAutomationStates = {}; 
+
+        // ====================================================================
+        // LÓGICA DE PERSISTÊNCIA (localStorage)
+        // ====================================================================
+        const AUTOMATION_STORAGE_KEY = 'mqtt_automations_list';
+
+        function loadAutomations() {
+            try {
+                const data = localStorage.getItem(AUTOMATION_STORAGE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error("Erro ao carregar automações do localStorage:", e);
+                return [];
+            }
+        }
+
+        function saveAutomations(automations) {
+            try {
+                localStorage.setItem(AUTOMATION_STORAGE_KEY, JSON.stringify(automations));
+                renderAutomations(automations);
+            } catch (e) {
+                console.error("Erro ao salvar automações no localStorage:", e);
+            }
+        }
+
+        function addAutomationToStorage(name, logic, actionTopic, actionPayload, qos, retain) {
+            const automations = loadAutomations();
+            const newAutomation = {
+                id: Date.now().toString() + Math.random().toString(16).slice(2), // ID único
+                name,
+                logic, // Nova lógica de disparo
+                actionTopic, // Novo tópico de ação
+                actionPayload, // Novo payload de ação
+                qos: parseInt(qos, 10),
+                retain,
+            };
+            automations.push(newAutomation);
+            saveAutomations(automations);
+        }
+
+        function deleteAutomationFromStorage(id) {
+            let automations = loadAutomations();
+            // Remove o estado anterior da automação que será deletada
+            delete lastAutomationStates[id];
+            automations = automations.filter(auto => auto.id !== id);
+            saveAutomations(automations);
+        }
+
+        function renderAutomations(automations) {
+            automationsList.innerHTML = '';
+            
+            if (automations.length === 0) {
+                automationsPlaceholder.classList.remove('hidden');
+                automationsList.appendChild(automationsPlaceholder);
+                return;
+            }
+            automationsPlaceholder.classList.add('hidden');
+
+            automations.forEach(auto => {
+                const item = document.createElement('div');
+                item.id = `auto-${auto.id}`;
+                // Estilo ajustado para Dark Mode
+                item.className = 'flex justify-between items-center p-3 bg-slate-800 rounded-xl shadow-lg border border-slate-600';
+                item.innerHTML = `
+                    <div class="flex flex-col truncate w-3/5">
+                        <span class="font-bold text-slate-200 text-sm truncate">${auto.name}</span>
+                        <span class="text-xs text-slate-400 truncate mt-1" title="${auto.logic}">
+                            Lógica: ${auto.logic}
+                        </span>
+                        <span class="text-xs text-slate-400 truncate mt-1">
+                            Ação: PUB ${auto.actionPayload} em ${auto.actionTopic}
+                        </span>
+                    </div>
+                    <div class="flex space-x-2 flex-shrink-0">
+                        <button data-id="${auto.id}" data-topic="${auto.actionTopic}" data-payload="${auto.actionPayload}" 
+                                data-qos="${auto.qos}" data-retain="${auto.retain}"
+                                class="run-automation-btn py-1 px-3 bg-primary-teal text-slate-900 text-xs font-bold rounded-lg hover:bg-teal-300 transition duration-150"
+                                title="Executar Ação: ${auto.actionTopic}: ${auto.actionPayload}">
+                            Run
+                        </button>
+                        <button data-id="${auto.id}" class="delete-automation-btn text-red-500 hover:text-red-400 transition duration-150" title="Deletar Automação">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                        </button>
+                    </div>
+                `;
+                automationsList.appendChild(item);
+            });
+        }
+        // ====================================================================
+        // FIM DA LÓGICA DE PERSISTÊNCIA
+        // ====================================================================
+
+
+        // --- Funções de Lógica e Avaliação (Inalteradas) ---
+
+        /**
+         * Verifica todas as automações salvas e dispara as ações SE O ESTADO MUDAR para TRUE.
+         * Esta função é chamada a cada nova mensagem recebida.
+         */
+        function checkAutomations() {
+            const automations = loadAutomations();
+            
+            automations.forEach(auto => {
+                const autoId = auto.id;
+                const topicPattern = /T:(\/[a-zA-Z0-9_\-\/]+)/g;
+                let evaluatedLogic = auto.logic;
+
+                // 1. Substitui T:/topico pelo valor real do payload
+                evaluatedLogic = evaluatedLogic.replace(topicPattern, (match, topic) => {
+                    const payload = lastKnownPayloads[topic];
+                    
+                    // Se o payload for um número válido, retorna o número. Caso contrário, retorna a string entre aspas.
+                    if (!isNaN(parseFloat(payload)) && isFinite(payload) && typeof payload !== 'boolean' && payload !== null && payload !== "") {
+                        return payload;
+                    } else {
+                        // Envelopa a string em aspas simples para ser avaliada corretamente
+                        return JSON.stringify(payload || ""); 
+                    }
+                });
+
+                let conditionMet = false;
+                try {
+                    // 2. Avalia a expressão JavaScript
+                    conditionMet = eval(evaluatedLogic);
+                } catch (e) {
+                    console.error(`Erro ao avaliar a lógica da automação "${auto.name}": ${e.message}`, evaluatedLogic);
+                    // Garante que o estado seja false em caso de erro de avaliação para não disparar
+                    conditionMet = false; 
+                }
+                
+                // --- 3. Lógica de Disparo Único (Edge Triggering) ---
+                const lastState = lastAutomationStates[autoId] || false; 
+
+                if (conditionMet && lastState === false) {
+                    // Condição ATUAL é TRUE, e o estado ANTERIOR era FALSE -> DISPARO!
+                    console.log(`[AUTOMAÇÃO ACIONADA (Disparo de Borda)] ${auto.name} (Lógica: ${auto.logic}) resultou em TRUE.`);
+                    
+                    // Publica a ação definida na automação
+                    publishMessage(auto.actionTopic, auto.actionPayload, auto.qos, auto.retain);
+                }
+                
+                // 4. Atualiza o estado da automação
+                lastAutomationStates[autoId] = conditionMet; 
+            });
+        }
+
+
+        // --- Funções de UI e MQTT ---
+
+        function redirectToLogin() {
+            localStorage.removeItem('mqtt_connection_data');
+            window.location.href = 'index.html?status=disconnected';
+        }
+        
+        function addSubscriptionToUI(topic, qos) {
+            if (document.getElementById(`sub-${topic}`)) return;
+
+            const item = document.createElement('div');
+            item.id = `sub-${topic}`;
+            // Estilo ajustado para Dark Mode (Fundo azul/índigo suave)
+            item.className = 'flex justify-between items-center p-2 bg-indigo-900/40 text-indigo-300 rounded-lg cursor-pointer hover:bg-indigo-900/70 transition duration-150 border border-indigo-900';
+            item.innerHTML = `
+                <div class="flex items-center truncate">
+                    <span class="font-medium text-sm truncate">${topic}</span>
+                    <span class="ml-2 px-1.5 py-0.5 text-xs font-bold text-slate-900 bg-primary-teal rounded-full">QoS ${qos}</span>
+                </div>
+                <button data-topic="${topic}" class="unsubscribe-btn text-slate-400 hover:text-red-400 ml-2 text-xs">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            `;
+            subscriptionsList.prepend(item);
+            const subPlaceholder = subscriptionsList.querySelector('p.text-center');
+            if (subPlaceholder) subPlaceholder.remove();
+        }
+
+        function removeSubscriptionFromUI(topic) {
+            const item = document.getElementById(`sub-${topic}`);
+            if (item) {
+                item.remove();
+            }
+            if (Object.keys(subscribedTopics).length === 0) {
+                 subscriptionsList.innerHTML = '<p class="text-center text-slate-500 text-xs italic p-4">Nenhum tópico subscrito.</p>';
+            }
+        }
+
+        function displayMessage(topic, payload, qos) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('pt-BR');
+            
+            const messageDiv = document.createElement('div');
+            // Fundo escuro sutil, texto claro
+            messageDiv.className = 'bg-slate-800 text-slate-200 p-3 rounded-xl my-2 fade-in shadow-inner';
+            messageDiv.innerHTML = `
+                <div class="flex justify-between items-center text-xs mb-1">
+                    <span class="font-bold text-primary-teal truncate">${topic}</span>
+                    <span class="text-slate-500">${timeString}</span>
+                </div>
+                <p class="text-sm break-words">${payload}</p>
+                <div class="text-right text-xs text-slate-500">QoS: ${qos}</div>
+            `;
+            
+            if (feedPlaceholder) feedPlaceholder.classList.add('hidden');
+
+            messageFeed.prepend(messageDiv);
+        }
+
+        function onMessageArrived(message) {
+            const topic = message.destinationName;
+            const payload = message.payloadString;
+            
+            // 1. Armazena o último payload conhecido (usado para automação)
+            lastKnownPayloads[topic] = payload;
+
+            // 2. Exibe a mensagem no feed
+            displayMessage(topic, payload, message.qos);
+            
+            // 3. Verifica se alguma automação deve ser acionada
+            checkAutomations(); 
+        }
+
+        function onConnectDashboard() {
+            console.log("MQTT Reconectado no Dashboard.");
+            
+            mqttClient.onMessageArrived = onMessageArrived;
+            
+            document.getElementById('connected-broker').textContent = `Broker: ws://${connectionData.broker}:${connectionData.port} | ID: ${connectionData.clientId}`;
+            
+            disconnectButton.removeEventListener('click', disconnectHandler);
+            disconnectButton.addEventListener('click', disconnectHandler);
+
+            initializeDashboardListeners();
+        }
+
+        function onConnectionLostDashboard(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.error("Conexão Perdida. Redirecionando para o login:", responseObject);
+                redirectToLogin();
+            }
+        }
+
+        function reconnectToBroker(data) {
+            const port = Number(data.port);
+            mqttClient = new Paho.MQTT.Client(data.broker, port, "/ws", data.clientId);
+            mqttClient.onConnectionLost = onConnectionLostDashboard;
+
+            const connectOptions = {
+                onSuccess: onConnectDashboard,
+                onFailure: (responseObject) => {
+                    console.error("Falha ao restabelecer conexão:", responseObject);
+                    redirectToLogin();
+                },
+                userName: data.username || undefined,
+                password: data.password || undefined,
+                keepAliveInterval: Number(data.keepAlive), 
+                cleanSession: data.cleanStart, 
+                timeout: 30, 
+                useSSL: [443, 8083, 8883].includes(port), 
+            };
+
+            console.log(`Tentando restabelecer conexão a ws://${data.broker}:${port}...`);
+            mqttClient.connect(connectOptions);
+        }
+        
+        function subscribeTopic(topic, qos) {
+            if (!mqttClient || !mqttClient.isConnected()) return console.error("Cliente não conectado.");
+
+            const qosNumber = parseInt(qos, 10);
+
+            mqttClient.subscribe(topic, {
+                qos: qosNumber,
+                onSuccess: () => {
+                    subscribedTopics[topic] = qosNumber;
+                    addSubscriptionToUI(topic, qosNumber);
+                    console.log(`Subscrito com sucesso: ${topic} (QoS: ${qosNumber})`);
+                },
+                onFailure: (error) => {
+                    console.error(`Falha ao subscrever ${topic}: ${error.errorMessage}`);
+                }
+            });
+        }
+
+        function unsubscribeTopic(topic) {
+            if (!mqttClient || !mqttClient.isConnected()) return console.error("Cliente não conectado.");
+            
+            mqttClient.unsubscribe(topic, {
+                onSuccess: () => {
+                    delete subscribedTopics[topic];
+                    removeSubscriptionFromUI(topic);
+                    console.log(`Desubscrito com sucesso: ${topic}`);
+                },
+                onFailure: (error) => {
+                    console.error(`Falha ao desubcrever ${topic}: ${error.errorMessage}`);
+                }
+            });
+        }
+
+        function publishMessage(topic, payload, qos, retain) {
+            if (!mqttClient || !mqttClient.isConnected()) {
+                console.error("Cliente não conectado. Não é possível publicar.");
+                return;
+            }
+
+            try {
+                const qosNumber = parseInt(qos, 10);
+                
+                const message = new Paho.MQTT.Message(payload);
+                message.destinationName = topic;
+                message.qos = qosNumber;
+                message.retained = retain;
+
+                mqttClient.send(message);
+                console.log(`Mensagem publicada em ${topic} (QoS: ${qosNumber}, Retain: ${retain}): ${payload}`);
+                
+                // A publicação no broker fará com que a mensagem apareça no feed se estiver subscrito
+                // via onMessageArrived, evitando duplicação.
+            } catch (e) {
+                console.error(`Erro ao tentar publicar: ${e.message}`);
+            }
+        }
+
+
+        // --- Handlers de Eventos ---
+
+        function disconnectHandler() {
+            if (mqttClient && mqttClient.isConnected()) {
+                try {
+                    mqttClient.disconnect();
+                    console.log("Desconectado pelo usuário.");
+                } catch (error) {
+                    console.error("Erro ao desconectar:", error);
+                }
+            }
+            // Limpa o armazenamento e redireciona
+            redirectToLogin();
+        }
+
+        function initializeDashboardListeners() {
+            subscribeForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const topic = document.getElementById('subscribe-topic').value.trim();
+                const qos = subscribeQoSInput.value;
+                
+                if (topic) {
+                    subscribeTopic(topic, qos);
+                    document.getElementById('subscribe-topic').value = '';
+                }
+            });
+
+            publishForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const topic = document.getElementById('publish-topic').value.trim();
+                const payload = document.getElementById('publish-payload').value;
+                const qos = publishQoSInput.value;
+                const retain = publishRetainInput.checked;
+
+                if (topic && payload) {
+                    publishMessage(topic, payload, qos, retain);
+                }
+            });
+            
+            subscriptionsList.addEventListener('click', (e) => {
+                if (e.target.closest('.unsubscribe-btn')) {
+                    const topic = e.target.closest('.unsubscribe-btn').dataset.topic;
+                    if (topic) {
+                        unsubscribeTopic(topic);
+                    }
+                }
+            });
+
+            // --- Listener de Criação de Automação ---
+            createAutomationForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const name = document.getElementById('automation-name').value.trim();
+                const logic = document.getElementById('automation-logic').value.trim();
+                const actionTopic = document.getElementById('automation-action-topic').value.trim();
+                const actionPayload = document.getElementById('automation-action-payload').value;
+                const qos = document.getElementById('automation-qos').value;
+                const retain = document.getElementById('automation-retain').checked;
+
+                if (name && logic && actionTopic && actionPayload) {
+                    addAutomationToStorage(name, logic, actionTopic, actionPayload, qos, retain);
+                    createAutomationForm.reset(); // Limpa o formulário após salvar
+                } else {
+                    console.error("Todos os campos obrigatórios da Automação devem ser preenchidos.");
+                }
+            });
+
+            // --- Listener de Execução e Deleção de Automação ---
+            automationsList.addEventListener('click', (e) => {
+                // Executar Automação (Executa a ação, não a lógica)
+                const runBtn = e.target.closest('.run-automation-btn');
+                if (runBtn) {
+                    const topic = runBtn.dataset.topic;
+                    const payload = runBtn.dataset.payload;
+                    const qos = runBtn.dataset.qos;
+                    const retain = runBtn.dataset.retain === 'true'; 
+
+                    if (topic && payload) {
+                        publishMessage(topic, payload, qos, retain);
+                    }
+                    return;
+                }
+                
+                // Deletar Automação
+                const deleteBtn = e.target.closest('.delete-automation-btn');
+                if (deleteBtn) {
+                    const id = deleteBtn.dataset.id;
+                    if (id) {
+                        deleteAutomationFromStorage(id);
+                    }
+                }
+            });
+        }
+
+        // --- Inicialização Principal ---
+        window.onload = () => {
+            const dataString = localStorage.getItem('mqtt_connection_data');
+            
+            if (!dataString) {
+                console.error("Nenhum dado de conexão encontrado. Redirecionando para login.");
+                redirectToLogin();
+                return;
+            }
+
+            try {
+                connectionData = JSON.parse(dataString);
+                // Carrega automações salvas localmente
+                renderAutomations(loadAutomations());
+                // Conecta ao MQTT
+                reconnectToBroker(connectionData);
+                
+                // (Opcional) Subscreve a todos os tópicos referenciados nas automações
+                const automations = loadAutomations();
+                const topicPattern = /T:(\/[a-zA-Z0-9_\-\/]+)/g;
+
+                automations.forEach(auto => {
+                    let match;
+                    // Reset the lastIndex property before iterating over matches
+                    topicPattern.lastIndex = 0; 
+                    while ((match = topicPattern.exec(auto.logic)) !== null) {
+                        const topicToSubscribe = match[1];
+                        if (!(topicToSubscribe in subscribedTopics)) {
+                            // Assinatura com QoS 0 para não forçar QoS no broker
+                            // Note: A subscribeTopic call here will execute *after* the initial connect, 
+                            // so we don't need to await the connection.
+                            subscribeTopic(topicToSubscribe, 0); 
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error("Erro ao parsear dados de conexão:", e);
+                redirectToLogin();
+            }
+        };
+
+    </script>
+</body>
+</html>
