@@ -62,13 +62,13 @@ Use the prefix **`T:/your/topic/path`** within the `Logic` field to reference th
 
 # 🇧🇷 Cliente Web MQTT Dashboard (Modo Escuro)
 
-Uma interface de cliente MQTT moderna, responsiva e rica em recursos, construída com **Tailwind CSS** e o **cliente JavaScript Paho MQTT**. Ela mimetiza a estética do **Modo Escuro do Gemini** e inclui lógica de automação do lado do cliente.
+Uma interface de cliente MQTT moderna, responsiva e rica em recursos, construída com **Tailwind CSS** e o **cliente JavaScript Paho MQTT**. 
 
 ---
 
 ## 🚀 Recursos
 
-* **Interface no Modo Escuro Gemini:** Tema escuro profundo e de alto contraste (Slate/Teal/Indigo) otimizado para uso prolongado.
+* **Interface no Modo Escuro :** Tema escuro profundo e de alto contraste (Slate/Teal/Indigo) otimizado para uso prolongado.
 * **Totalmente Responsivo:** Excelente experiência de usuário em dispositivos desktop e móveis.
 * **Automações Locais (Disparo de Borda):** Defina regras que disparam automaticamente uma publicação quando o payload de um tópico subscrito muda e atende a uma condição JavaScript específica (ex: `T:/sensor/temp > 25`).
 * **Configuração Persistente:** As configurações de conexão e automações são salvas localmente usando `localStorage`.
