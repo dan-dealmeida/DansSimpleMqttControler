@@ -1,6 +1,6 @@
 # 🌐 Web MQTT Client Dashboard (Dark Mode)
 
-A modern, responsive, and feature-rich MQTT client interface built with **Tailwind CSS** and the **Paho MQTT JavaScript client**. It mimics the **Gemini Dark Mode** aesthetic and includes client-side automation logic.
+A modern, responsive, and feature-rich MQTT client interface built with **Tailwind CSS** and the **Paho MQTT JavaScript client**. 
 
 ---
 
