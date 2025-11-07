@@ -1,4 +1,4 @@
-# 🌐 Web MQTT Client Dashboard (Dark Mode)
+# 🌐 Web MQTT Client Dashboard
 
 A modern, responsive, and feature-rich MQTT client interface built with **Tailwind CSS** and the **Paho MQTT JavaScript client**. 
 
@@ -6,7 +6,6 @@ A modern, responsive, and feature-rich MQTT client interface built with **Tailwi
 
 ## 🚀 Features
 
-* **Dark Mode UI:** Deep, high-contrast dark theme (Slate/Teal/Indigo) optimized for extended use.
 * **Fully Responsive:** Excellent user experience on both desktop and mobile devices.
 * **Local Automations (Edge Triggering):** Define rules that automatically trigger a publication when the payload of a subscribed topic changes and meets a specified JavaScript condition (e.g., `T:/sensor/temp > 25`).
 * **Persistent Configuration:** Connection settings and automations are saved locally using `localStorage`.
