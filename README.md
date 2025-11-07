@@ -11,7 +11,8 @@ A modern, responsive, and feature-rich MQTT client interface built with **Tailwi
 * **Persistent Configuration:** Connection settings and automations are saved locally using `localStorage`.
 * **Core MQTT Functionality:** Connect/Disconnect, Subscribe/Unsubscribe (with QoS selection), and Quick Publish (with QoS and Retain options).
 
----
+
+
 
 ## 🛠️ Project Structure
 
@@ -21,10 +22,11 @@ The project consists of two main files:
 2.  **`dashboard.html` (Main Interface):** Provides the subscription, publishing, and automation features.
 
 ### 1. index.html (Login)
-
+---<img width="1891" height="907" alt="Captura de tela 2025-10-17 182018" src="https://github.com/user-attachments/assets/8af06afd-7068-43dc-b38e-df6aef3930a7" />
 Allows the user to input the MQTT Broker address, port, credentials (Username/Password), and connection options (Client ID generation, Keep Alive, Clean Session).
 
 ### 2. dashboard.html (Dashboard)
+<img width="1206" height="889" alt="Captura de tela 2025-10-30 095820" src="https://github.com/user-attachments/assets/718dfa8b-4504-47e0-b566-ecf557cf138e" />
 
 The main operational hub, divided into two sections:
 
